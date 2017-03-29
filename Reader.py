@@ -34,7 +34,7 @@ class Reader():
             l.append(row[5])
             cnt += 1
             if cnt == 100:
-                pass
+                break#Change me to pass
         return l
     def GetTestSentences(self,test_path):
         l = []
@@ -45,7 +45,7 @@ class Reader():
             l.append(row[3])
             cnt += 1
             if cnt == 100:
-                pass
+                break#Change me to pass
         return l
     
 

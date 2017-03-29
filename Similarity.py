@@ -2,14 +2,15 @@ from pprint import pprint
 import warnings
 warnings.filterwarnings(action='ignore', category=UserWarning, module='gensim')
 from collections import defaultdict
-from gensim import corpora, models, similarities
+from gensim import corpora, models
+from gensim.similarities import Similarity
 import os
 from Reader import Reader
 
 
 #texts are the two sentences you are comparing with
 texts = ["Human machine interface for lab abc computer applications",
-         "Very Short Sentence"]
+         "The man went on the interface and figured out how to run the program"]
 
 #I want documents to be every sentence in the entire test/train set
 documents = ["Human machine interface for lab abc computer applications",
@@ -21,23 +22,42 @@ documents = ["Human machine interface for lab abc computer applications",
              "The generation of random binary unordered trees",
              "Relation of user perceived response time to error measurement"]
 
+
+model = models.KeyedVectors.load_word2vec_format(r'C:\Users\CCrowe\Downloads\GoogleNews-vectors-negative300.bin.gz', binary=True)
+
 class Similar():
     def __init__(self,documents,texts):
         self.CompareSentences(documents,texts)
 
+    def DictAlreadyExists(self):
+        if (os.path.exists("quora.dict")):
+            return True
+        else:
+            return False
+
+    def CorpusAlreadyExists(self):
+        if (os.path.exists("quora.mm")):
+            return True
+        else:
+            return False
+
     def SetUp(self,documents,texts):
         self.new_documents = texts + documents
-        self.vectorizedTexts = self.GetVectorizedText(documents)
+        if not self.DictAlreadyExists() and not self.CorpusAlreadyExists():
+            print("dict or corpora do not exist")
+            self.vectorizedTexts = self.GetVectorizedText(documents)
+        else:
+            self.vectorizedTexts = []
         self.dictionary = self.GetDictionary(self.vectorizedTexts)
         self.corpus = self.GetCorpus(self.dictionary,self.vectorizedTexts)
         
     def CompareSentences(self,documents,texts):
         self.SetUp(documents,texts)
         self.tsim,self.lsim = self.GetSimilarities(self.dictionary,self.corpus)
-        #self.PrintSimilar(self.how_similar,self.how_similar2,self.new_documents)
+        #self.PrintSimilar(self.tsim,self.lsim,self.new_documents)
 
     def PrintSimilar(self,tsim,lsim,documents):
-        for tsim,lsim,sent in zip(how_similar,how_similar2,documents):
+        for tsim,lsim,sent in zip(tsim,lsim,documents):
             print(tsim,lsim,sent)
 
     def GetVectorizedText(self,documents):
@@ -45,7 +65,7 @@ class Similar():
         return texts
     
     def GetDictionary(self,texts):
-        if (os.path.exists("quora.dict")):
+        if self.DictAlreadyExists():
             dictionary = corpora.Dictionary.load('quora.dict')
         else:
             dictionary = corpora.Dictionary(texts)
@@ -78,7 +98,7 @@ class Similar():
         texts = [[token for token in text if frequency[token] > 1] for text in texts]
         return texts
     def GetCorpus(self,dictionary,texts):
-        if (os.path.exists("quora.mm")):
+        if self.CorpusAlreadyExists():
             corpus = corpora.MmCorpus('quora.mm')
         else:
             corpus = [dictionary.doc2bow(text) for text in texts]
@@ -86,30 +106,51 @@ class Similar():
         return corpus
 
     def GetLsm(self,dictionary,corpus):
-        lsi = models.lsimodel.LsiModel(corpus,id2word=dictionary, num_topics=len(corpus)/2)
+        lsi = models.lsimodel.LsiModel(corpus,id2word=dictionary)#num_topics=len(corpus)/2
         vec_lsi = lsi[corpus[0]]
-        index = similarities.MatrixSimilarity(lsi[corpus])
-        lsims = index[vec_lsi]
-        return list(enumerate(lsims))
+        index = Similarity('l_index',corpus,len(dictionary))
+        cnt = 0
+        for similarities in index:
+            if cnt == 1:
+                return list(enumerate(similarities))
+            cnt += 1
+            
+        #return list(enumerate(lsims))
+    def GetWord2Vec(self,dictionary,corpus):
+        model = models.Word2Vec(self.new_documents, size=100, window=5, min_count=5, workers=4)
+        model.build_vocab(self.new_documents, update=True)
+        model.train(self.new_documents)
+        file_name = 'word2vec.model'
+        model.save(file_name)
+        model = models.Word2Vec.load(file_name)
+        print(model.wv.similarity(self.new_documents[0].lower().split(),self.new_documents[1].lower().split()))
 
     def GetTfidf(self,dictionary,corpus):
-        tfidf = models.TfidfModel(corpus)#, id2word=dictionary, num_topics=len(corpus)/2
+        tfidf = models.TfidfModel(corpus)
         vec_lsi = tfidf[corpus[0]]
-        index = similarities.MatrixSimilarity(tfidf[corpus],len(dictionary))
-        tsims = index[vec_lsi]
-        return list(enumerate(tsims))
+        index = Similarity('t_index',corpus,len(dictionary))
+        #tsims = index[vec_lsi]
+        cnt = 0
+        for similarities in index:
+            if cnt == 1:
+                return list(enumerate(similarities))
+            cnt += 1
+        #return list(enumerate(tsims))
     
     def GetSimilarities(self,dictionary,corpus):
-        tsims = self.GetLsm(dictionary,corpus)
-        lsims = self.GetTfidf(dictionary,corpus)
-        return (tsims[1][1],lsims[1][1][1],)
+        self.GetWord2Vec(dictionary,corpus)
+        #print("lsims")
+        lsims = self.GetLsm(dictionary,corpus)
+        #print("tsims")
+        tsims = self.GetTfidf(dictionary,corpus)
+        return (tsims,lsims,)
 
 
 if __name__ == '__main__':
     reader = Reader(r"C:\Users\CCrowe\Documents\Kaggle\Quora\train.csv",r"C:\Users\CCrowe\Documents\Kaggle\Quora\test.csv")
     documents = reader.GetDocuments()
+    print("documents retrieved")
     similar = Similar(documents,texts)
-    print(similar.tsim,similar.lsim)
 
 
 
