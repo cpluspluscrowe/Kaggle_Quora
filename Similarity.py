@@ -3,7 +3,9 @@ import warnings
 warnings.filterwarnings(action='ignore', category=UserWarning, module='gensim')
 from collections import defaultdict
 from gensim import corpora, models, similarities
+import os
 from Reader import Reader
+
 
 #texts are the two sentences you are comparing with
 texts = ["Human machine interface for lab abc computer applications",
@@ -43,7 +45,11 @@ class Similar():
         return texts
     
     def GetDictionary(self,texts):
-        dictionary = corpora.Dictionary(texts)
+        if (os.path.exists("quora.dict")):
+            dictionary = corpora.Dictionary.load('quora.dict')
+        else:
+            dictionary = corpora.Dictionary(texts)
+            dictionary.save('quora.dict')
         return dictionary
 
     def FormatText(self,textList):
@@ -72,7 +78,11 @@ class Similar():
         texts = [[token for token in text if frequency[token] > 1] for text in texts]
         return texts
     def GetCorpus(self,dictionary,texts):
-        corpus = [dictionary.doc2bow(text) for text in texts]
+        if (os.path.exists("quora.mm")):
+            corpus = corpora.MmCorpus('quora.mm')
+        else:
+            corpus = [dictionary.doc2bow(text) for text in texts]
+            corpora.MmCorpus.serialize('quora.mm', corpus)
         return corpus
 
     def GetLsm(self,dictionary,corpus):
